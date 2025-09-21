@@ -1,0 +1,8 @@
+#4.0# "Scene name" "Scene Deskrition" %000000000 1                                                                                                      
+/ch/01/config "Ch name" 1 WH 1 # name icon_nr(just_use_1) color(just_use_WH) chanel_routing_nr(just_use_the_same_as_chanel_nr)
+/ch/01/preamp +6.7 OFF ON 24  63 # gain invert low_cut ?(has_to_be_24) low_cut_hz
+/ch/01/eq OFF # eq_on_off
+/ch/01/eq/1 PEQ 124.7 +0.00 2.0 # type(PEQ, VEQ(just_convert_to_peq), LCut, LShv, HShv, HCut) hz gain q
+/ch/01/eq/2 PEQ 496.6 +0.00 2.0
+/ch/01/eq/3 PEQ 1k97 +0.00 2.0
+/ch/01/eq/4 HShv 10k02 +0.00 2.0
