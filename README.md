@@ -5,7 +5,7 @@ Converter for Digital Audio Mixer Scene Files
 * Input Ch Name
 * Input Ch Preamp Gain / Trim
 * Input Ch Low Cut/High Pass Filter
-* Input Ch Equalizer
+* Input Ch 4 Band Parametric Equalizer
 * Input Ch Fader
 
 ## Compatable Files
