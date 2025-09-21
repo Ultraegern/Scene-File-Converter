@@ -8,5 +8,5 @@ Converter for Digital Audio Mixer Scene Files
 * Input Ch Equalizer
 * Input Ch Fader
 
-## Compatable Mixers
+## Compatable Files
 * Behringer X32 / Midas M32 series `.scn` files
