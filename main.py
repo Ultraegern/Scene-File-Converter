@@ -1,5 +1,5 @@
 # main.py - Pyton v3.9.13
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 
 class EqBandType(Enum):
@@ -24,19 +24,6 @@ class FourBandEqualizer:
         EqualizerBand(),
         EqualizerBand(),
     ))
-    
-    def set_band(self, index: int, *, type: EqBandType = None,
-     frequency: float = None, gain: float = None, width: float = None):
-        """Update parameters of one EQ band by index (0–3)."""
-        if not (0 <= index < 4):
-            raise IndexError("Band index out of range (0–3)")
-
-        band = self.bands[index]
-
-        if type is not None: band.type = type
-        if frequency is not None: band.frequency = frequency
-        if gain is not None: band.gain = gain
-        if width is not None: band.width = width
 
 @dataclass
 class InputChannel:
@@ -45,8 +32,7 @@ class InputChannel:
     low_cut_filter: bool = False
     low_cut_filter_frequency: float = 100.0 #Hz
     is_muted: bool = False
-    equalizer: FourBandEqualizer = FourBandEqualizer((
-        EqulizerBand(),
+    equalizer: FourBandEqualizer = FourBandEqualizer()
     pan: float = 0.0 # -1.0 (left) to 1.0 (right)
     fader: float = 0.0 #dB
     
