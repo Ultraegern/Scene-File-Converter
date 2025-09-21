@@ -45,8 +45,16 @@ class InputChannel:
     low_cut_filter: bool = False
     low_cut_filter_frequency: float = 100.0 #Hz
     is_muted: bool = False
-    equalizer: FourBandEqualizer = FourBandEqualizer()
+    equalizer: FourBandEqualizer = field(default_factory=FourBandEqualizer.new)
     equalizer_enabled: bool = False
     pan: float = 0.0 # -1.0 (left) to 1.0 (right)
     fader: float = 0.0 #dB
+
+@dataclass
+class InputChannels:
+    channels: list[InputChannel] = field(default_factory=lambda: [InputChannel() for _ in range(32)])
+
+    @classmethod
+    def new(cls):
+        return cls(channels=[InputChannel() for _ in range(32)])
     
