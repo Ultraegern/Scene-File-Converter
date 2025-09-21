@@ -16,6 +16,10 @@ class EqualizerBand:
     gain: float = 0.0 #dB
     width: float = 2.0 #Q
 
+    @classmethod
+    def new(cls):
+        return cls()
+
 @dataclass
 class FourBandEqualizer:
     bands: tuple[EqualizerBand, EqualizerBand, EqualizerBand, EqualizerBand] = field(default_factory=lambda: (
@@ -25,6 +29,15 @@ class FourBandEqualizer:
         EqualizerBand(),
     ))
 
+    @classmethod
+    def new(cls):
+        return cls(bands=(
+            EqualizerBand.new(),
+            EqualizerBand.new(),
+            EqualizerBand.new(),
+            EqualizerBand.new()
+        ))
+
 @dataclass
 class InputChannel:
     name: str = ""
@@ -33,6 +46,7 @@ class InputChannel:
     low_cut_filter_frequency: float = 100.0 #Hz
     is_muted: bool = False
     equalizer: FourBandEqualizer = FourBandEqualizer()
+    equalizer_enabled: bool = False
     pan: float = 0.0 # -1.0 (left) to 1.0 (right)
     fader: float = 0.0 #dB
     
