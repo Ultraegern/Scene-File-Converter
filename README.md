@@ -6,6 +6,7 @@ Converter for Digital Audio Mixer Scene Files
 * Input Ch Preamp Gain / Trim
 * Input Ch Low Cut/High Pass Filter
 * Input Ch 4 Band Parametric Equalizer
+* Input Ch Pan
 * Input Ch Mute
 * Input Ch Fader
 
