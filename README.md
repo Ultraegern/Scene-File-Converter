@@ -11,6 +11,6 @@ Converter for Digital Audio Mixer Scene Files
 * Input Ch Fader
 
 ## Compatable Files
-### Input
+### Inport
 * Behringer X32 / Midas M32 series `.scn` files
-### Output
+### Export
