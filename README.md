@@ -13,5 +13,8 @@ Converter for Digital Audio Mixer Scene Files
 
 ## Compatable Files
 ### Inport
+* Scene File Converter `.json` files
 * Behringer X32 / Midas M32 series `.scn` files
 ### Export
+* Scene File Converter `.json` files
+* Behringer X32 / Midas M32 series `.scn` files
