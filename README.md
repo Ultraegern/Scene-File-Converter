@@ -9,6 +9,7 @@ Converter for Digital Audio Mixer Scene Files
 * Input Ch Pan
 * Input Ch Mute
 * Input Ch Fader
+* Input Ch Bus Sends
 
 ## Compatable Files
 ### Inport

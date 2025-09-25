@@ -38,6 +38,28 @@ class FourBandEqualizer:
             EqualizerBand.new()
         ))
 
+class InsertType(Enum):
+    PRE_FADER = "pre_fader"
+    POST_FADER = "post_fader"
+
+@dataclass
+class Send:
+    is_muted: bool = False
+    type: InsertType = InsertType.PRE_FADER
+    level: float = -90.0 #dB
+
+    @classmethod
+    def new(cls):
+        return cls()
+
+@dataclass
+class Sends:
+    sends: list[Send] = field(default_factory=lambda: [Send() for _ in range(16)])
+
+    @classmethod
+    def new(cls):
+        return cls(sends=[Send.new() for _ in range(16)])
+
 @dataclass
 class InputChannel:
     name: str = ""
@@ -48,6 +70,7 @@ class InputChannel:
     equalizer: FourBandEqualizer = field(default_factory=FourBandEqualizer.new)
     equalizer_enabled: bool = False
     pan: float = 0.0 # -1.0 (left) to 1.0 (right)
+    bus_sends: Sends = field(default_factory=Sends.new)
     fader: float = 0.0 #dB
 
 @dataclass
@@ -57,4 +80,12 @@ class InputChannels:
     @classmethod
     def new(cls):
         return cls(channels=[InputChannel() for _ in range(32)])
-    
+
+@dataclass
+class MixerScene:
+    name: str = ""
+    input_channels: InputChannels = field(default_factory=InputChannels.new)
+
+    @classmethod
+    def new(cls):
+        return cls(name="", input_channels=InputChannels.new())
