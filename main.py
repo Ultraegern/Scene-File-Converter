@@ -1,7 +1,9 @@
 # main.py - Pyton v3.9.13
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 from enum import Enum
 import re
+import json
+from typing import Any
 
 class EqBandType(Enum):
     PEQ = "peq"
@@ -90,6 +92,33 @@ class MixerScene:
     @classmethod
     def new(cls):
         return cls(name="", input_channels=InputChannels.new())
+    
+    def to_dict(self) -> dict[str, Any]:
+        """Return a JSON-serializable dict representation of the MixerScene.
+
+        Enums are converted to their values and tuples are converted to lists.
+        """
+        def _convert(obj: Any) -> Any:
+            if isinstance(obj, dict):
+                return {k: _convert(v) for k, v in obj.items()}
+            if isinstance(obj, list):
+                return [_convert(v) for v in obj]
+            if isinstance(obj, tuple):
+                return [_convert(v) for v in obj]
+            if isinstance(obj, Enum):
+                return obj.value
+            return obj
+
+        raw = asdict(self)
+        return _convert(raw)
+
+    def save_json(self, file_path: str, *, indent: int = 2) -> None:
+        """Save the scene as JSON to the given file path.
+
+        Uses UTF-8 and writes human-friendly indented JSON.
+        """
+        with open(file_path, 'w', encoding='utf-8') as f:
+            json.dump(self.to_dict(), f, ensure_ascii=False, indent=indent)
 
 class M32:
     @staticmethod
@@ -290,5 +319,12 @@ if __name__ == '__main__':
         print('Channel 1 EQ enabled:', ch0.equalizer_enabled)
         for i, b in enumerate(ch0.equalizer.bands, start=1):
             print(f'  EQ band {i}: type={b.type}, freq={b.frequency}, gain={b.gain}, q={b.width}')
+        # save full scene JSON next to the script
+        try:
+            out = 'm32Exsample.scn.json'
+            scene.save_json(out)
+            print('Saved JSON to', out)
+        except Exception as e:
+            print('Error saving JSON:', e)
     except Exception as e:
         print('Error running demo:', e)
