@@ -3,7 +3,7 @@ from dataclasses import dataclass, field, asdict
 from enum import Enum
 import re
 import json
-from typing import Any
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 class EqBandType(Enum):
     PEQ = "peq"
@@ -93,7 +93,7 @@ class MixerScene:
     def new(cls):
         return cls(name="", input_channels=InputChannels.new())
     
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         """Return a JSON-serializable dict representation of the MixerScene.
 
         Enums are converted to their values and tuples are converted to lists.
@@ -109,8 +109,8 @@ class MixerScene:
                 return obj.value
             return obj
 
-        raw = asdict(self)
-        return _convert(raw)
+        raw: Dict[str, Any] = asdict(self)
+        return cast(Dict[str, Any], _convert(raw))
 
     def save_json(self, file_path: str, *, indent: int = 2) -> None:
         """Save the scene as JSON to the given file path.
@@ -119,6 +119,157 @@ class MixerScene:
         """
         with open(file_path, 'w', encoding='utf-8') as f:
             json.dump(self.to_dict(), f, ensure_ascii=False, indent=indent)
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'MixerScene':
+        """Reconstruct a MixerScene from a dict (produced by to_dict)."""
+        name = data.get('name', '')
+
+        # Input channels
+        channels: List[InputChannel] = []
+        ic_any = data.get('input_channels')
+        ic: Optional[Dict[str, Any]] = ic_any if isinstance(ic_any, dict) else None
+
+        ch_list: Optional[List[Any]] = None
+        if ic is not None:
+            ch_list_any = ic.get('channels')
+            if isinstance(ch_list_any, list):
+                ch_list = ch_list_any
+
+        if ch_list is not None:
+            for chd_any in ch_list:
+                if not isinstance(chd_any, dict):
+                    continue
+                chd = cast(Dict[str, Any], chd_any)
+
+                # initialize defaults so static analysis knows variables exist
+                ch_name: str = ''
+                gain: float = 30.0
+                low_cut_filter: bool = False
+                low_cut_filter_frequency: float = 100.0
+                is_muted: bool = False
+                equalizer_enabled: bool = False
+                pan: float = 0.0
+                fader: float = 0.0
+                sends: Sends = Sends.new()
+                bands_objs: List[EqualizerBand] = []
+
+                name_val = chd.get('name', '')
+                if isinstance(name_val, str):
+                    ch_name = name_val
+
+                # safe numeric conversions with fallbacks
+                try:
+                    gain = float(chd.get('gain', 30.0))
+                except Exception:
+                    gain = 30.0
+                low_cut_filter = bool(chd.get('low_cut_filter', False))
+                try:
+                    low_cut_filter_frequency = float(chd.get('low_cut_filter_frequency', 100.0))
+                except Exception:
+                    low_cut_filter_frequency = 100.0
+                is_muted = bool(chd.get('is_muted', False))
+                equalizer_enabled = bool(chd.get('equalizer_enabled', False))
+                try:
+                    pan = float(chd.get('pan', 0.0))
+                except Exception:
+                    pan = 0.0
+                try:
+                    fader = float(chd.get('fader', 0.0))
+                except Exception:
+                    fader = 0.0
+
+                # bus sends
+                sends_objs: List[Send] = []
+                bus_sends = chd.get('bus_sends')
+                if isinstance(bus_sends, dict):
+                    bus_sends = cast(Dict[str, Any], bus_sends)
+                    s_list = bus_sends.get('sends')
+                else:
+                    s_list = None
+                if isinstance(s_list, list):
+                    for sd in s_list:
+                        if not isinstance(sd, dict):
+                            continue
+                        sd = cast(Dict[str, Any], sd)
+                        s_muted = bool(sd.get('is_muted', False))
+                        try:
+                            s_level = float(sd.get('level', -90.0))
+                        except Exception:
+                            s_level = -90.0
+                        s_type_raw = sd.get('type', InsertType.PRE_FADER.value)
+                        try:
+                            s_type = InsertType(s_type_raw)
+                        except Exception:
+                            s_type = InsertType.PRE_FADER
+                        sends_objs.append(Send(is_muted=s_muted, type=s_type, level=s_level))
+                sends = Sends(sends=sends_objs + [Send.new() for _ in range(max(0, 16 - len(sends_objs)))])
+
+                # equalizer
+                eq = chd.get('equalizer')
+                if isinstance(eq, dict):
+                    eq = cast(Dict[str, Any], eq)
+                    b_list = eq.get('bands')
+                else:
+                    b_list = None
+                if isinstance(b_list, list):
+                    for bd in b_list:
+                        if not isinstance(bd, dict):
+                            continue
+                        bd = cast(Dict[str, Any], bd)
+                        b_type_raw = bd.get('type', EqBandType.PEQ.value)
+                        try:
+                            b_type = EqBandType(b_type_raw)
+                        except Exception:
+                            b_type = EqBandType.PEQ
+                        try:
+                            b_freq = float(bd.get('frequency', 1000.0))
+                        except Exception:
+                            b_freq = 1000.0
+                        try:
+                            b_gain = float(bd.get('gain', 0.0))
+                        except Exception:
+                            b_gain = 0.0
+                        try:
+                            b_width = float(bd.get('width', 2.0))
+                        except Exception:
+                            b_width = 2.0
+                        bands_objs.append(EqualizerBand(type=b_type, frequency=b_freq, gain=b_gain, width=b_width))
+                # ensure 4 bands
+                while len(bands_objs) < 4:
+                    bands_objs.append(EqualizerBand.new())
+                # construct a 4-tuple explicitly so typing is satisfied
+                bands_tuple: Tuple[EqualizerBand, EqualizerBand, EqualizerBand, EqualizerBand] = (
+                    bands_objs[0], bands_objs[1], bands_objs[2], bands_objs[3]
+                )
+                equalizer = FourBandEqualizer(bands=bands_tuple)
+
+                ch = InputChannel(
+                    name=ch_name,
+                    gain=gain,
+                    low_cut_filter=low_cut_filter,
+                    low_cut_filter_frequency=low_cut_filter_frequency,
+                    is_muted=is_muted,
+                    equalizer=equalizer,
+                    equalizer_enabled=equalizer_enabled,
+                    pan=pan,
+                    bus_sends=sends,
+                    fader=fader,
+                )
+                channels.append(ch)
+
+        # pad to 32 channels
+        while len(channels) < 32:
+            channels.append(InputChannel())
+
+        input_channels = InputChannels(channels=channels[:32])
+        return cls(name=name, input_channels=input_channels)
+
+    @classmethod
+    def load_json(cls, file_path: str) -> 'MixerScene':
+        with open(file_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        return cls.from_dict(data)
 
 class M32:
     @staticmethod
