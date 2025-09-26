@@ -271,103 +271,7 @@ class MixerScene:
             data = json.load(f)
         return cls.from_dict(data)
 
-    def save_m32(self, file_path: str) -> None:
-        """Save a minimal M32 .scn file representing this MixerScene.
-
-        This writes a simple textual representation compatible with the decoder in this
-        repository. It intentionally writes only a small subset (header + per-channel
-        config, preamp, eq and mix/send lines) to keep the encoder compact and safe.
-        """
-        lines: list[str] = []
-        # header: version and scene name
-        lines.append('#4.0# "{}" "" %000000000 1'.format(self.name or 'Scene'))
-
-        for idx, ch in enumerate(self.input_channels.channels, start=1):
-            prefix = f'/ch/{idx:02d}'
-            # config line with name
-            lines.append(f'{prefix}/config "{ch.name}" 1 WH {idx}')
-            # preamp: gain, low_cut presence and frequency
-            low_cut_flag = 'ON' if ch.low_cut_filter else 'OFF'
-            lines.append(f'{prefix}/preamp {ch.gain:+.1f} OFF {low_cut_flag} 24  {int(ch.low_cut_filter_frequency)}')
-            # eq on/off
-            eq_on = 'ON' if ch.equalizer_enabled else 'OFF'
-            lines.append(f'{prefix}/eq {eq_on}')
-            # eq bands
-            def fmt_freq_human(hz: float) -> str:
-                """Format frequency for M32 .scn files.
-
-                Preserve the compact k-notation the original files use:
-                - <1000 Hz: integer if whole, else one decimal (e.g. 124.7)
-                - >=1000 and <100000: show as '1k97' for 1970, '10k02' for 10020
-                  (two significant digits from the remainder, preserving leading zeroes)
-                - Fallback: one decimal when not integer.
-                """
-                try:
-                    hz_f = float(hz)
-                except Exception:
-                    return str(hz)
-                # below 1000 Hz
-                if hz_f < 1000.0:
-                    if hz_f.is_integer():
-                        return str(int(hz_f))
-                    return f'{hz_f:.1f}'
-                # k-notation: keep two digits from remainder but trim a trailing zero
-                if 1000.0 <= hz_f < 100000.0:
-                    k = int(hz_f // 1000)
-                    rem = int(round(hz_f - k * 1000))
-                    # clamp rem to [0,999]
-                    rem = max(0, min(999, rem))
-                    # Format remainder as 3 digits then strip a trailing zero if present
-                    # so 1970 -> '1k97' (rem=970 -> '970' -> strip trailing '0' -> '97')
-                    rem_str_3 = f'{rem:03d}'
-                    if rem_str_3.endswith('0'):
-                        rem_str = rem_str_3[:-1]
-                    else:
-                        rem_str = rem_str_3
-                    return f'{k}k{rem_str}'
-                # fallback
-                if hz_f.is_integer():
-                    return str(int(hz_f))
-                return f'{hz_f:.1f}'
-
-            for b_idx, band in enumerate(ch.equalizer.bands, start=1):
-                # map type to the short tokens used by M32 .scn files
-                def eq_type_token(bt: EqBandType) -> str:
-                    if bt == EqBandType.PEQ:
-                        return 'PEQ'
-                    if bt == EqBandType.HIGH_SHELF:
-                        return 'HShv'
-                    if bt == EqBandType.LOW_SHELF:
-                        return 'LShv'
-                    if bt == EqBandType.LOW_CUT:
-                        return 'LCut'
-                    if bt == EqBandType.HIGH_CUT:
-                        return 'HCut'
-                    return 'PEQ'
-
-                t = eq_type_token(band.type)
-                freq = fmt_freq_human(band.frequency)
-                # preserve single-decimal for gain when integer-like but keep +/-, and width one decimal
-                gain_str = f'{band.gain:+.2f}' if (abs(band.gain) < 100 and (band.gain != int(band.gain))) else f'{band.gain:+.1f}'
-                lines.append(f'{prefix}/eq/{b_idx} {t} {freq} {gain_str} {band.width:.1f}')
-
-            # mix summary (write fader and ON). Preserve '-oo' when fader indicates -90.0 sentinel.
-            fader_str = '-oo' if ch.fader <= -90.0 else f'{ch.fader:+.1f}'
-            lines.append(f'{prefix}/mix ON {fader_str} ON +0 OFF   -oo')
-            # sends
-            for s_idx, send in enumerate(ch.bus_sends.sends, start=1):
-                is_on = 'ON' if not send.is_muted else 'OFF'
-                try:
-                    level = float(send.level)
-                except Exception:
-                    level = -90.0
-                # preserve -oo marker for very low levels
-                level_str = '-oo' if level <= -90.0 else f'{level:+.1f}'
-                insert = 'PRE' if send.type == InsertType.PRE_FADER else 'POST'
-                lines.append(f'{prefix}/mix/{s_idx} {is_on} {level_str} {"+0"} {insert} 0')
-
-        with open(file_path, 'w', encoding='utf-8') as f:
-            f.write('\n'.join(lines) + '\n')
+    
 
 class M32:
     @staticmethod
@@ -556,11 +460,101 @@ class M32:
 
     @staticmethod
     def encode(scene: MixerScene, file_path: str) -> None:
-        """Encode a MixerScene to a minimal .scn file by delegating to MixerScene.save_m32.
+        """Save a minimal M32 .scn file representing this MixerScene.
 
-        Kept as a convenience to mirror the decode API.
+        This writes a simple textual representation compatible with the decoder in this
+        repository. It intentionally writes only a small subset (header + per-channel
+        config, preamp, eq and mix/send lines) to keep the encoder compact and safe.
         """
-        scene.save_m32(file_path)
+        lines: list[str] = []
+        # header: version and scene name
+        lines.append('#4.0# "{}" "" %000000000 1'.format(scene.name or 'Scene'))
+
+        for idx, ch in enumerate(scene.input_channels.channels, start=1):
+            prefix = f'/ch/{idx:02d}'
+            # config line with name
+            lines.append(f'{prefix}/config "{ch.name}" 1 WH {idx}')
+            # preamp: gain, low_cut presence and frequency
+            low_cut_flag = 'ON' if ch.low_cut_filter else 'OFF'
+            lines.append(f'{prefix}/preamp {ch.gain:+.1f} OFF {low_cut_flag} 24  {int(ch.low_cut_filter_frequency)}')
+            # eq on/off
+            eq_on = 'ON' if ch.equalizer_enabled else 'OFF'
+            lines.append(f'{prefix}/eq {eq_on}')
+            # eq bands
+            def fmt_freq_human(hz: float) -> str:
+                """Format frequency for M32 .scn files.
+
+                Preserve the compact k-notation the original files use:
+                - <1000 Hz: integer if whole, else one decimal (e.g. 124.7)
+                - >=1000 and <100000: show as '1k97' for 1970, '10k02' for 10020
+                  (two significant digits from the remainder, preserving leading zeroes)
+                - Fallback: one decimal when not integer.
+                """
+                try:
+                    hz_f = float(hz)
+                except Exception:
+                    return str(hz)
+                if hz_f < 1000.0:
+                    if hz_f.is_integer():
+                        return str(int(hz_f))
+                    return f'{hz_f:.1f}'
+                # k-notation: keep two digits from remainder but trim a trailing zero
+                if 1000.0 <= hz_f < 100000.0:
+                    k = int(hz_f // 1000)
+                    rem = int(round(hz_f - k * 1000))
+                    # clamp rem to [0,999]
+                    rem = max(0, min(999, rem))
+                    # Format remainder as 3 digits then strip a trailing zero if present
+                    # so 1970 -> '1k97' (rem=970 -> '970' -> strip trailing '0' -> '97')
+                    rem_str_3 = f'{rem:03d}'
+                    if rem_str_3.endswith('0'):
+                        rem_str = rem_str_3[:-1]
+                    else:
+                        rem_str = rem_str_3
+                    return f'{k}k{rem_str}'
+                # fallback
+                if hz_f.is_integer():
+                    return str(int(hz_f))
+                return f'{hz_f:.1f}'
+
+            for b_idx, band in enumerate(ch.equalizer.bands, start=1):
+                # map type to the short tokens used by M32 .scn files
+                def eq_type_token(bt: EqBandType) -> str:
+                    if bt == EqBandType.PEQ:
+                        return 'PEQ'
+                    if bt == EqBandType.HIGH_SHELF:
+                        return 'HShv'
+                    if bt == EqBandType.LOW_SHELF:
+                        return 'LShv'
+                    if bt == EqBandType.LOW_CUT:
+                        return 'LCut'
+                    if bt == EqBandType.HIGH_CUT:
+                        return 'HCut'
+                    return 'PEQ'
+
+                t = eq_type_token(band.type)
+                freq = fmt_freq_human(band.frequency)
+                # preserve single-decimal for gain when integer-like but keep +/-, and width one decimal
+                gain_str = f'{band.gain:+.2f}' if (abs(band.gain) < 100 and (band.gain != int(band.gain))) else f'{band.gain:+.1f}'
+                lines.append(f'{prefix}/eq/{b_idx} {t} {freq} {gain_str} {band.width:.1f}')
+
+            # mix summary (write fader and ON). Preserve '-oo' when fader indicates -90.0 sentinel.
+            fader_str = '-oo' if ch.fader <= -90.0 else f'{ch.fader:+.1f}'
+            lines.append(f'{prefix}/mix ON {fader_str} ON +0 OFF   -oo')
+            # sends
+            for s_idx, send in enumerate(ch.bus_sends.sends, start=1):
+                is_on = 'ON' if not send.is_muted else 'OFF'
+                try:
+                    level = float(send.level)
+                except Exception:
+                    level = -90.0
+                # preserve -oo marker for very low levels
+                level_str = '-oo' if level <= -90.0 else f'{level:+.1f}'
+                insert = 'PRE' if send.type == InsertType.PRE_FADER else 'POST'
+                lines.append(f'{prefix}/mix/{s_idx} {is_on} {level_str} {"+0"} {insert} 0')
+
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write('\n'.join(lines) + '\n')
 
 
 if __name__ == '__main__':
