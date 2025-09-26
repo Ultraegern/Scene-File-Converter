@@ -458,24 +458,11 @@ class M32:
 
 
 if __name__ == '__main__':
-    # simple smoke test/demo using bundled sample file
+    # Launch the GUI if possible, otherwise do nothing.
     try:
-        scene = M32.decode('m32Exsample.scn')
-        print('Scene name:', scene.name)
-        ch0 = scene.input_channels.channels[0]
-        print('Channel 1 name:', ch0.name)
-        print('Channel 1 gain:', ch0.gain)
-        print('Channel 1 low cut enabled:', ch0.low_cut_filter)
-        print('Channel 1 low cut freq:', ch0.low_cut_filter_frequency)
-        print('Channel 1 EQ enabled:', ch0.equalizer_enabled)
-        for i, b in enumerate(ch0.equalizer.bands, start=1):
-            print(f'  EQ band {i}: type={b.type}, freq={b.frequency}, gain={b.gain}, q={b.width}')
-        # save full scene JSON next to the script
-        try:
-            out = 'm32Exsample.scn.json'
-            scene.save_json(out)
-            print('Saved JSON to', out)
-        except Exception as e:
-            print('Error saving JSON:', e)
-    except Exception as e:
-        print('Error running demo:', e)
+        # local import to avoid requiring tkinter for library use
+        from gui import run_gui
+        run_gui()
+    except Exception:
+        # If GUI cannot be started (no tkinter, headless, etc.), do nothing.
+        pass
