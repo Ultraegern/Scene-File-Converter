@@ -1,13 +1,10 @@
 import tkinter as tk
 from tkinter import filedialog, messagebox
-from typing import Optional
+from typing import Optional, Tuple, List
 import os
 
-# Import M32 and MixerScene lazily inside methods to avoid circular imports when
-# running `python main.py` which imports this gui module.
 
-
-def _win_get_open_filename(title: str, filetypes: list[tuple[str, str]]) -> tuple[Optional[str], Optional[int]]:
+def _win_get_open_filename(title: str, filetypes: List[Tuple[str, str]]) -> Tuple[Optional[str], Optional[int]]:
     """Use the native Windows GetOpenFileNameW dialog to get the file path and the selected filter index.
 
     Returns (path, filter_index) where filter_index is 1-based index of the selected filter.
@@ -20,11 +17,11 @@ def _win_get_open_filename(title: str, filetypes: list[tuple[str, str]]) -> tupl
         comdlg32 = ctypes.windll.comdlg32
 
         # build filter string: 'Description\0pattern\0Description2\0pattern2\0\0'
-        filt_parts = []
+        filt_parts: List[str] = []
         for desc, pat in filetypes:
             filt_parts.append(desc)
             filt_parts.append(pat)
-        filter_str = '\0'.join(filt_parts) + '\0\0'
+        filter_str = "\0".join(filt_parts) + "\0\0"
 
         # buffer for filename
         buf = ctypes.create_unicode_buffer(260)
@@ -74,7 +71,12 @@ def _win_get_open_filename(title: str, filetypes: list[tuple[str, str]]) -> tupl
 
 
 class SceneConverterGUI:
-    def __init__(self, root: tk.Tk):
+    src_var: tk.StringVar
+    dst_var: tk.StringVar
+    src_decoder_var: tk.StringVar
+    _src_decoder: str
+
+    def __init__(self, root: tk.Tk) -> None:
         self.root = root
         root.title('Scene File Converter')
         root.resizable(False, False)
@@ -88,9 +90,7 @@ class SceneConverterGUI:
         tk.Entry(frm, width=50, textvariable=self.src_var).grid(row=1, column=0, columnspan=2)
         tk.Button(frm, text='Browse...', command=self.browse_source).grid(row=1, column=2, padx=5)
 
-        # Note: decoder selection is done in the file browser filter (Windows):
-        # the open-file dialog will allow picking M32 or JSON filter and we read that choice.
-        # Show a small status label with the currently selected decoder.
+        # Decoder status label
         self._src_decoder = 'm32'
         self.src_decoder_var = tk.StringVar(value='Decoder: m32')
         tk.Label(frm, textvariable=self.src_decoder_var).grid(row=1, column=3, sticky='w', padx=(10, 0))
@@ -100,29 +100,30 @@ class SceneConverterGUI:
         self.dst_var = tk.StringVar()
         tk.Entry(frm, width=50, textvariable=self.dst_var).grid(row=3, column=0, columnspan=2)
         tk.Button(frm, text='Save as...', command=self.browse_destination).grid(row=3, column=2, padx=5)
+
         # Convert button
         tk.Button(frm, text='Convert', command=self.convert, width=20).grid(row=4, column=0, columnspan=3, pady=(12, 0))
 
     def browse_source(self) -> None:
-        # Ask the native Windows dialog so we can capture the filter index (which filter the user selected).
-        filetypes = [('M32/SCN', '*.scn'), ('JSON', '*.json'), ('All files', '*.*')]
+        # Try native Windows dialog first to capture the selected file-type filter index.
+        filetypes: List[Tuple[str, str]] = [('M32/SCN', '*.scn'), ('JSON', '*.json'), ('All files', '*.*')]
         path, idx = _win_get_open_filename('Select source scene file', filetypes)
         if path is None:
-            # fallback to standard filedialog; try to infer decoder from extension
-            p = filedialog.askopenfilename(title='Select source scene file', filetypes=filetypes)
-            if p:
-                self.src_var.set(p)
-                _, ext = os.path.splitext(p)
-                ext = ext.lower()
-                if ext == '.json':
-                    self._src_decoder = 'json'
-                    self.src_decoder_var.set('Decoder: json')
-                else:
-                    self._src_decoder = 'm32'
-                    self.src_decoder_var.set('Decoder: m32')
+            p: Optional[str] = filedialog.askopenfilename(title='Select source scene file', filetypes=filetypes)
+            if not p:
+                return
+            self.src_var.set(p)
+            _, ext = os.path.splitext(p)
+            ext = ext.lower()
+            if ext == '.json':
+                self._src_decoder = 'json'
+                self.src_decoder_var.set('Decoder: json')
+            else:
+                self._src_decoder = 'm32'
+                self.src_decoder_var.set('Decoder: m32')
         else:
             self.src_var.set(path)
-            # _win_get_open_filename returns 1-based index; map 1->M32, 2->JSON
+            # idx is 1-based: map 1->M32, 2->JSON
             if idx == 2:
                 self._src_decoder = 'json'
                 self.src_decoder_var.set('Decoder: json')
@@ -132,21 +133,19 @@ class SceneConverterGUI:
 
     def browse_destination(self) -> None:
         initial = os.path.splitext(os.path.basename(self.src_var.get()))[0] if self.src_var.get() else 'scene'
-        # allow choosing JSON or SCN via the file type selector
         p = filedialog.asksaveasfilename(
             title='Save destination file',
             defaultextension='.json',
             initialfile=initial + '.json',
-            filetypes=[('JSON', '*.json'), ('M32/SCN', '*.scn'), ('All files', '*.*')]
+            filetypes=[('JSON', '*.json'), ('M32/SCN', '*.scn'), ('All files', '*.*')],
         )
         if p:
             self.dst_var.set(p)
 
     def convert(self) -> None:
-        src = self.src_var.get()
-        dst = self.dst_var.get()
-        # decoder is stored in self._src_decoder (set when the user picked the source file)
-        decoder = getattr(self, '_src_decoder', 'm32')
+        src: str = self.src_var.get()
+        dst: str = self.dst_var.get()
+        decoder: str = getattr(self, '_src_decoder', 'm32')
 
         # infer encoder from destination extension
         _, ext = os.path.splitext(dst)
@@ -156,7 +155,6 @@ class SceneConverterGUI:
         elif ext == '.json':
             enc = 'json'
         else:
-            # default to json if unknown
             enc = 'json'
 
         if not src or not os.path.isfile(src):
@@ -167,8 +165,8 @@ class SceneConverterGUI:
             return
 
         try:
-            # local imports to avoid circular imports when main imports this module
-            from main import M32, MixerScene
+            # local imports to avoid circular import when main imports this module
+            from main import M32, MixerScene  # type: ignore
 
             if decoder == 'm32':
                 scene = M32.decode(src)
@@ -182,10 +180,8 @@ class SceneConverterGUI:
             if enc == 'json':
                 scene.save_json(dst)
             elif enc == 'm32':
-                # ensure .scn extension
                 if not dst.lower().endswith('.scn'):
                     dst = dst + '.scn'
-                # use M32 encoder convenience
                 M32.encode(scene, dst)
             else:
                 scene.save_json(dst)
