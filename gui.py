@@ -90,7 +90,9 @@ class SceneConverterGUI:
         tk.Entry(frm, width=50, textvariable=self.src_var).grid(row=1, column=0, columnspan=2)
         tk.Button(frm, text='Browse...', command=self.browse_source).grid(row=1, column=2, padx=5)
 
-        # Decoder status label
+        # Note: decoder selection is done in the file browser filter (Windows):
+        # the open-file dialog will allow picking M32 or JSON filter and we read that choice.
+        # Show a small status label with the currently selected decoder.
         self._src_decoder = 'm32'
         self.src_decoder_var = tk.StringVar(value='Decoder: m32')
         tk.Label(frm, textvariable=self.src_decoder_var).grid(row=1, column=3, sticky='w', padx=(10, 0))
@@ -133,11 +135,12 @@ class SceneConverterGUI:
 
     def browse_destination(self) -> None:
         initial = os.path.splitext(os.path.basename(self.src_var.get()))[0] if self.src_var.get() else 'scene'
+        # allow choosing JSON or SCN via the file type selector
         p = filedialog.asksaveasfilename(
             title='Save destination file',
             defaultextension='.json',
             initialfile=initial + '.json',
-            filetypes=[('JSON', '*.json'), ('M32/SCN', '*.scn'), ('All files', '*.*')],
+            filetypes=[('JSON', '*.json'), ('M32/SCN', '*.scn'), ('All files', '*.*')]
         )
         if p:
             self.dst_var.set(p)
@@ -155,6 +158,7 @@ class SceneConverterGUI:
         elif ext == '.json':
             enc = 'json'
         else:
+            # default to json if unknown
             enc = 'json'
 
         if not src or not os.path.isfile(src):
@@ -166,7 +170,7 @@ class SceneConverterGUI:
 
         try:
             # local imports to avoid circular import when main imports this module
-            from main import M32, MixerScene  # type: ignore
+            from main import M32, MixerScene
 
             if decoder == 'm32':
                 scene = M32.decode(src)
