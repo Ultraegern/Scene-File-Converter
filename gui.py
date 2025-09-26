@@ -88,8 +88,12 @@ class SceneConverterGUI:
         tk.Entry(frm, width=50, textvariable=self.src_var).grid(row=1, column=0, columnspan=2)
         tk.Button(frm, text='Browse...', command=self.browse_source).grid(row=1, column=2, padx=5)
 
-    # Note: decoder selection is done in the file browser filter (Windows):
-    # the open-file dialog will allow picking M32 or JSON filter and we read that choice.
+        # Note: decoder selection is done in the file browser filter (Windows):
+        # the open-file dialog will allow picking M32 or JSON filter and we read that choice.
+        # Show a small status label with the currently selected decoder.
+        self._src_decoder = 'm32'
+        self.src_decoder_var = tk.StringVar(value='Decoder: m32')
+        tk.Label(frm, textvariable=self.src_decoder_var).grid(row=1, column=3, sticky='w', padx=(10, 0))
 
         # Output file selection
         tk.Label(frm, text='Destination (encoder) file:').grid(row=2, column=0, sticky='w', pady=(8, 0))
@@ -112,15 +116,19 @@ class SceneConverterGUI:
                 ext = ext.lower()
                 if ext == '.json':
                     self._src_decoder = 'json'
+                    self.src_decoder_var.set('Decoder: json')
                 else:
                     self._src_decoder = 'm32'
+                    self.src_decoder_var.set('Decoder: m32')
         else:
             self.src_var.set(path)
             # _win_get_open_filename returns 1-based index; map 1->M32, 2->JSON
             if idx == 2:
                 self._src_decoder = 'json'
+                self.src_decoder_var.set('Decoder: json')
             else:
                 self._src_decoder = 'm32'
+                self.src_decoder_var.set('Decoder: m32')
 
     def browse_destination(self) -> None:
         initial = os.path.splitext(os.path.basename(self.src_var.get()))[0] if self.src_var.get() else 'scene'
@@ -137,8 +145,8 @@ class SceneConverterGUI:
     def convert(self) -> None:
         src = self.src_var.get()
         dst = self.dst_var.get()
-        # decide decoder from user's selection (manual choice)
-        decoder = (self.decoder_var.get() if hasattr(self, 'decoder_var') else 'm32')
+    # decoder is stored in self._src_decoder (set when the user picked the source file)
+    decoder = getattr(self, '_src_decoder', 'm32')
 
         # infer encoder
         _, ext = os.path.splitext(dst)
