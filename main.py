@@ -271,6 +271,77 @@ class MixerScene:
             data = json.load(f)
         return cls.from_dict(data)
 
+    def save_m32(self, file_path: str) -> None:
+        """Save a minimal M32 .scn file representing this MixerScene.
+
+        This writes a simple textual representation compatible with the decoder in this
+        repository. It intentionally writes only a small subset (header + per-channel
+        config, preamp, eq and mix/send lines) to keep the encoder compact and safe.
+        """
+        lines: list[str] = []
+        # header: version and scene name
+        lines.append('#4.0# "{}" "" %000000000 1'.format(self.name or 'Scene'))
+
+        for idx, ch in enumerate(self.input_channels.channels, start=1):
+            prefix = f'/ch/{idx:02d}'
+            # config line with name
+            lines.append(f'{prefix}/config "{ch.name}" 1 WH {idx}')
+            # preamp: gain, low_cut presence and frequency
+            low_cut_flag = 'ON' if ch.low_cut_filter else 'OFF'
+            lines.append(f'{prefix}/preamp {ch.gain:+.1f} OFF {low_cut_flag} 24  {int(ch.low_cut_filter_frequency)}')
+            # eq on/off
+            eq_on = 'ON' if ch.equalizer_enabled else 'OFF'
+            lines.append(f'{prefix}/eq {eq_on}')
+            # eq bands
+            def fmt_freq_human(hz: float) -> str:
+                """Format frequency for M32 .scn files.
+
+                - For values below 1000 Hz: write integer if whole, else one decimal (e.g. 124.7)
+                - For values >= 1000 and < 100000: emit '1k97' style when possible.
+                  E.g. 1970 -> '1k97', 10020 -> '10k02'.
+                - Otherwise, fall back to a one-decimal numeric string.
+                """
+                try:
+                    hz_f = float(hz)
+                except Exception:
+                    return str(hz)
+                if hz_f < 1000.0:
+                    if hz_f.is_integer():
+                        return str(int(hz_f))
+                    return f'{hz_f:.1f}'
+                if 1000.0 <= hz_f < 100000.0:
+                    # represent in k notation: split thousands and remainder
+                    k = int(hz_f // 1000)
+                    rem = int(round(hz_f - k * 1000))
+                    # produce two-digit remainder with leading zeros when needed
+                    rem_str = f'{rem:02d}'
+                    return f'{k}k{rem_str}'
+                # fallback
+                if hz_f.is_integer():
+                    return str(int(hz_f))
+                return f'{hz_f:.1f}'
+
+            for b_idx, band in enumerate(ch.equalizer.bands, start=1):
+                # map type to short forms similar to the input format
+                t = band.type.value.upper()
+                freq = fmt_freq_human(band.frequency)
+                lines.append(f'{prefix}/eq/{b_idx} {t} {freq} {band.gain:+.2f} {band.width:.1f}')
+
+            # mix summary (write fader and ON)
+            lines.append(f'{prefix}/mix ON {ch.fader:+.1f} ON +0 OFF   -oo')
+            # sends
+            for s_idx, send in enumerate(ch.bus_sends.sends, start=1):
+                is_on = 'ON' if not send.is_muted else 'OFF'
+                try:
+                    level = float(send.level)
+                except Exception:
+                    level = -90.0
+                insert = 'PRE' if send.type == InsertType.PRE_FADER else 'POST'
+                lines.append(f'{prefix}/mix/{s_idx} {is_on} {level:+.1f} {"+0"} {insert} 0')
+
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write('\n'.join(lines) + '\n')
+
 class M32:
     @staticmethod
     def decode(file_path: str) -> MixerScene:
@@ -455,6 +526,14 @@ class M32:
                     channel.fader = parse_level(tokens_rest[0])
 
         return scene
+
+    @staticmethod
+    def encode(scene: MixerScene, file_path: str) -> None:
+        """Encode a MixerScene to a minimal .scn file by delegating to MixerScene.save_m32.
+
+        Kept as a convenience to mirror the decode API.
+        """
+        scene.save_m32(file_path)
 
 
 if __name__ == '__main__':

@@ -3,7 +3,8 @@ from tkinter import filedialog, messagebox
 from typing import Optional
 import os
 
-from main import M32, MixerScene
+# Import M32 and MixerScene lazily inside methods to avoid circular imports when
+# running `python main.py` which imports this gui module.
 
 
 class SceneConverterGUI:
@@ -26,11 +27,10 @@ class SceneConverterGUI:
         self.dst_var = tk.StringVar()
         tk.Entry(frm, width=50, textvariable=self.dst_var).grid(row=3, column=0, columnspan=2)
         tk.Button(frm, text='Save as...', command=self.browse_destination).grid(row=3, column=2, padx=5)
-
-        # Encoder selection (currently only JSON)
+        # Encoder selection (json and m32)
         tk.Label(frm, text='Encoder:').grid(row=4, column=0, sticky='w', pady=(8, 0))
         self.encoder_var = tk.StringVar(value='json')
-        tk.OptionMenu(frm, self.encoder_var, 'json').grid(row=5, column=0, sticky='w')
+        tk.OptionMenu(frm, self.encoder_var, 'json', 'm32').grid(row=5, column=0, sticky='w')
 
         # Convert button
         tk.Button(frm, text='Convert', command=self.convert, width=20).grid(row=6, column=0, columnspan=3, pady=(12, 0))
@@ -57,6 +57,9 @@ class SceneConverterGUI:
             messagebox.showerror('Error', 'Please select a destination file to save the encoded output.')
             return
         try:
+            # local imports to avoid circular imports when main imports this module
+            from main import M32, MixerScene
+
             scene: MixerScene = M32.decode(src)
         except Exception as e:
             messagebox.showerror('Decode error', f'Failed to decode source file:\n{e}')
@@ -65,8 +68,13 @@ class SceneConverterGUI:
         try:
             if enc == 'json':
                 scene.save_json(dst)
+            elif enc == 'm32':
+                # ensure .scn extension
+                if not dst.lower().endswith('.scn'):
+                    dst = dst + '.scn'
+                # use M32 encoder convenience
+                M32.encode(scene, dst)
             else:
-                # future encoders could be added
                 scene.save_json(dst)
         except Exception as e:
             messagebox.showerror('Save error', f'Failed to save destination file:\n{e}')
