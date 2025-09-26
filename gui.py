@@ -145,10 +145,10 @@ class SceneConverterGUI:
     def convert(self) -> None:
         src = self.src_var.get()
         dst = self.dst_var.get()
-    # decoder is stored in self._src_decoder (set when the user picked the source file)
-    decoder = getattr(self, '_src_decoder', 'm32')
+        # decoder is stored in self._src_decoder (set when the user picked the source file)
+        decoder = getattr(self, '_src_decoder', 'm32')
 
-        # infer encoder
+        # infer encoder from destination extension
         _, ext = os.path.splitext(dst)
         ext = ext.lower()
         if ext == '.scn':
@@ -158,20 +158,22 @@ class SceneConverterGUI:
         else:
             # default to json if unknown
             enc = 'json'
+
         if not src or not os.path.isfile(src):
             messagebox.showerror('Error', 'Please select a valid source file to decode.')
             return
         if not dst:
             messagebox.showerror('Error', 'Please select a destination file to save the encoded output.')
             return
+
         try:
             # local imports to avoid circular imports when main imports this module
             from main import M32, MixerScene
 
             if decoder == 'm32':
-                scene: MixerScene = M32.decode(src)
+                scene = M32.decode(src)
             else:
-                scene: MixerScene = MixerScene.load_json(src)
+                scene = MixerScene.load_json(src)
         except Exception as e:
             messagebox.showerror('Decode error', f'Failed to decode source file:\n{e}')
             return
